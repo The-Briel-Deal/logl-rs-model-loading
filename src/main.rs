@@ -1,11 +1,61 @@
+use std::borrow::BorrowMut;
+
 use anyhow::Result;
+use glam::{vec3, Mat4, Vec3};
 use glium::{
-    implement_vertex,
-    index::PrimitiveType,
-    program, uniform,
-    winit::{self, event_loop::EventLoop},
-    DrawParameters, Surface,
+    dynamic_uniform, glutin::surface::WindowSurface, implement_vertex, index::PrimitiveType, program, uniform, uniforms::{DynamicUniforms, EmptyUniforms, UniformValue, Uniforms, UniformsStorage}, winit::{
+        application::ApplicationHandler,
+        event::WindowEvent,
+        event_loop::{ActiveEventLoop, EventLoop},
+        platform::pump_events::EventLoopExtPumpEvents,
+        window::WindowId,
+    }, DrawParameters, Surface
 };
+
+struct AppState {
+    display: glium::backend::glutin::Display<WindowSurface>,
+    window: glium::winit::window::Window,
+    program: glium::Program,
+    vertex_buffer: glium::VertexBuffer<Vertex>,
+    index_buffer: glium::IndexBuffer<u16>,
+    matrix: Mat4,
+    color: Vec3,
+    draw_parameters: DrawParameters<'static>,
+}
+
+impl ApplicationHandler for AppState {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {}
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        match event {
+            WindowEvent::RedrawRequested => {
+                let mut frame = self.display.draw();
+                self.color.y += 0.001;
+                let matrix: [[f32; 4]; 4] = self.matrix.to_cols_array_2d();
+                let color: [f32; 3] = self.color.into();
+                let uniforms = uniform! {matrix: matrix, uColor: color};
+
+                frame
+                    .draw(
+                        &self.vertex_buffer,
+                        &self.index_buffer,
+                        &self.program,
+                        &uniforms,
+                        &self.draw_parameters,
+                    )
+                    .unwrap();
+                frame.finish().unwrap();
+                self.window.request_redraw();
+            }
+            WindowEvent::Resized(_size) => {}
+            _ => (),
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Vertex {
@@ -14,7 +64,7 @@ struct Vertex {
 }
 implement_vertex!(Vertex, position, color);
 
-fn main() -> Result<()>{
+fn main() -> Result<()> {
     let event_loop = EventLoop::builder().build().unwrap();
 
     let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new().build(&event_loop);
@@ -40,56 +90,55 @@ fn main() -> Result<()>{
     let index_buffer =
         glium::IndexBuffer::new(&display, PrimitiveType::TrianglesList, &[0u16, 1, 2]).unwrap();
 
-    let program: Result<glium::Program, glium::program::ProgramChooserCreationError> = program!(&display, 100 => {
+    let program: Result<glium::Program, glium::program::ProgramChooserCreationError> = program!(&display, 450 => {
         vertex: "
-            #version 100
+            #version 450
 
-            uniform lowp mat4 matrix;
+            uniform mat4 matrix;
+            uniform vec3 uColor;
 
-            attribute lowp vec2 position;
-            attribute lowp vec3 color;
+            in vec2 position;
+            in vec3 color;
 
-            varying lowp vec3 vColor;
+            out vec3 vColor;
 
             void main() {
                 gl_Position = vec4(position, 0.0, 1.0) * matrix;
-                vColor = color;
+                vColor = color + uColor;
             }
         ",
         fragment: "
-            #version 100
-            varying lowp vec3 vColor;
+            #version 450
+            in vec3 vColor;
+
+            out vec4 FragColor;
 
             void main() {
-                gl_FragColor = vec4(vColor, 1.0);
+                FragColor = vec4(vColor, 1.0);
             }
         ",
         },
     );
-    let program = program?;
-    let uniforms = uniform! {
-            matrix: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0f32]
-            ]
 
-    };
+    let color: [f32; 3] = vec3(1.0, 0.0, 0.0).into();
+    let program = program?;
+
+    let matrix = Mat4::IDENTITY;
+    let color = Vec3::new(1.0, 0.0, 0.0);
 
     let draw_parameters = DrawParameters::default();
-    loop {
-        let mut frame = display.draw();
+    let mut app_state = AppState {
+        display,
+        window,
+        vertex_buffer,
+        index_buffer,
+        program,
+        matrix,
+        color,
+        draw_parameters,
+    };
 
-        frame
-            .draw(
-                &vertex_buffer,
-                &index_buffer,
-                &program,
-                &uniforms,
-                &draw_parameters,
-            )
-            .unwrap();
-        frame.finish().unwrap();
-    }
+    event_loop.run_app(&mut app_state)?;
+
+    Ok(())
 }
