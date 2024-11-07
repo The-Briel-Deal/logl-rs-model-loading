@@ -1,13 +1,11 @@
-use std::borrow::BorrowMut;
 
 use anyhow::Result;
 use glam::{vec3, Mat4, Vec3};
 use glium::{
-    dynamic_uniform, glutin::surface::WindowSurface, implement_vertex, index::PrimitiveType, program, uniform, uniforms::{DynamicUniforms, EmptyUniforms, UniformValue, Uniforms, UniformsStorage}, winit::{
+    glutin::surface::WindowSurface, implement_vertex, index::PrimitiveType, program, uniform, winit::{
         application::ApplicationHandler,
         event::WindowEvent,
         event_loop::{ActiveEventLoop, EventLoop},
-        platform::pump_events::EventLoopExtPumpEvents,
         window::WindowId,
     }, DrawParameters, Surface
 };
@@ -24,11 +22,11 @@ struct AppState {
 }
 
 impl ApplicationHandler for AppState {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {}
+    fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
-        window_id: WindowId,
+        _event_loop: &ActiveEventLoop,
+        _window_id: WindowId,
         event: WindowEvent,
     ) {
         match event {
@@ -120,7 +118,6 @@ fn main() -> Result<()> {
         },
     );
 
-    let color: [f32; 3] = vec3(1.0, 0.0, 0.0).into();
     let program = program?;
 
     let matrix = Mat4::IDENTITY;
